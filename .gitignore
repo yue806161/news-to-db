@@ -1,0 +1,6 @@
+# Byte-compiled files
+__pycache__/
+*.pyc
+
+# Generated databases (regenerate with `python main.py <input.txt>`)
+data/sqlite/*.db
