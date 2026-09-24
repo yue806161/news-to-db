@@ -1,22 +1,63 @@
-"""Parse a ProQuest news export .txt file and load it into SQLite (and
+"""Parse ProQuest news export .txt files and load them into SQLite (and
 optionally MongoDB).
 
+Each input may be a single .txt file or a directory, in which case every
+*.txt file under it is parsed. Records are upserted keyed by their
+ProQuest document id (proquest_id), so re-running on overlapping files
+(e.g. new exports whose date range overlaps an older file) is safe and
+de-duplicates automatically.
+
 Usage:
-    python main.py news/ProQuestDocuments-2026-09-10.txt
-    python main.py news/ProQuestDocuments-2026-09-10.txt --with-mongo
+    python main.py                          # scans data/FT and data/WSJ
+    python main.py data/FT data/WSJ
+    python main.py "data/FT/ProQuestDocuments-1996-*.txt"   # one year
+    python main.py data/FT/ProQuestDocuments-1996-05-31-第一頁.txt
+    python main.py data/FT data/WSJ --with-mongo
 """
 from __future__ import annotations
 
 import argparse
+import glob
 import sys
+from pathlib import Path
 
 from newsdb.db.sqlite_db import SQLiteNewsDB
 from newsdb.parser import parse_file
 
+DEFAULT_INPUTS = ["data/FT", "data/WSJ"]
+
+
+def collect_txt_files(inputs: list[str]) -> list[Path]:
+    """Resolve each input (file or directory) to a sorted list of .txt files."""
+    files: list[Path] = []
+    for raw in inputs:
+        # Expand wildcards ourselves: PowerShell/cmd don't glob for programs.
+        if any(ch in raw for ch in "*?["):
+            matches = sorted(Path(m) for m in glob.glob(raw, recursive=True))
+            if not matches:
+                print(f"warning: no files match {raw}, skipping", file=sys.stderr)
+            files.extend(m for m in matches if m.is_file())
+            continue
+        path = Path(raw)
+        if path.is_dir():
+            files.extend(sorted(path.rglob("*.txt")))
+        elif path.is_file():
+            files.append(path)
+        else:
+            print(f"warning: {path} not found, skipping", file=sys.stderr)
+    return files
+
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("input", help="Path to a ProQuest export .txt file")
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "inputs",
+        nargs="*",
+        default=DEFAULT_INPUTS,
+        help=f"ProQuest export .txt file(s) or directories (default: {DEFAULT_INPUTS})",
+    )
     parser.add_argument(
         "--sqlite-path", default="data/sqlite/news.db", help="Output SQLite database path"
     )
@@ -28,9 +69,28 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    print(f"Parsing {args.input} ...")
-    records = parse_file(args.input)
-    print(f"Parsed {len(records)} news records")
+    txt_files = collect_txt_files(args.inputs)
+    if not txt_files:
+        print("No .txt files found to parse.", file=sys.stderr)
+        return 1
+    print(f"Found {len(txt_files)} .txt file(s)")
+
+    records: list[dict] = []
+    for path in txt_files:
+        try:
+            file_records = parse_file(path)
+        except Exception as exc:  # noqa: BLE001 - keep ingesting the rest of the files
+            print(f"warning: failed to parse {path}: {exc}", file=sys.stderr)
+            continue
+        print(f"  {path}: {len(file_records)} records")
+        records.extend(file_records)
+
+    unique_ids = {r["proquest_id"] for r in records if r.get("proquest_id")}
+    print(
+        f"Parsed {len(records)} records total, "
+        f"{len(unique_ids)} unique by proquest_id "
+        f"({len(records) - len(unique_ids)} duplicate)"
+    )
 
     with SQLiteNewsDB(args.sqlite_path) as db:
         written = db.upsert_records(records)
