@@ -6,10 +6,10 @@
 
 ```bash
 mamba env create -f environment.yml
-mamba activate NSTC-115-2
+mamba activate NSTC-115-text-project
 ```
 
-環境名稱為 `NSTC-115-2`(Python 3.11 + pymongo)。不想 activate 的話,在指令前加 `mamba run -n NSTC-115-2` 即可。
+環境名稱為 `NSTC-115-text-project`(Python 3.11 + pymongo)。不想 activate 的話,在指令前加 `mamba run -n NSTC-115-text-project` 即可。
 
 > Windows 上如果專案路徑含中文,`mamba env create -f` 可能讀不到 YAML,把 `environment.yml` 複製到純英文路徑再建即可。
 
