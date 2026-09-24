@@ -100,15 +100,18 @@ SQLite 的 `news` 表。MongoDB 文件的欄位相同,只是沒有 `proquest_id`
 | `proquest_id` | ProQuest 文件識別碼(主鍵) |
 | `publication_title` | 出版物名稱 |
 | `title` | 標題 |
-| `publication_date` | 出版日期 |
+| `publication_date` | 出版日期,轉成日期:MongoDB 是 Date(UTC 當天 00:00),SQLite 是 `YYYY-MM-DD` 文字。解析不了時為空 |
+| `publication_date_raw` | 出版日期的原始文字(例如 `Aug 11, 2026`),永遠保留 |
 | `section` | 區段 |
 | `url` | 文件 URL |
 | `abstract` | 摘要 |
 | `full_text` | 全文 |
 | `author` | 作者 |
-| `created_at` | 第一次寫入資料庫的時間(UTC ISO 格式,程式產生) |
+| `created_at` | 第一次寫入資料庫的時間(程式產生,UTC)。MongoDB 是 Date,SQLite 是 ISO 文字 |
 
-舊版資料庫缺少 `section` 或 `created_at` 時,下次執行會自動補欄位,不需要刪檔重建。
+舊版 SQLite 缺少 `section`、`created_at`、`publication_date_raw` 時,下次執行會自動補欄位,不需要刪檔重建。
+
+注意:MongoDB 的舊資料若 `publication_date`、`created_at` 還是字串,型別會跟新資料不一致,請清掉 collection 後重匯。
 
 ## txt 檔格式與解析方式
 

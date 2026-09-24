@@ -12,9 +12,9 @@ File layout (observed from news/ProQuestDocuments-*.txt):
 """
 from __future__ import annotations
 
-import json
 import re
-from dataclasses import dataclass, field
+
+from newsdb.dates import parse_publication_date
 
 SEPARATOR_RE = re.compile(r"^_{10,}$", re.MULTILINE)
 BLOCK_SPLIT_RE = re.compile(r"\n\s*\n")
@@ -104,6 +104,12 @@ def parse_record(record_text: str) -> dict:
             result["publication_year"] = int(result["publication_year"])
         except ValueError:
             pass
+
+    # Keep the original text; publication_date becomes a date (None if unparseable).
+    raw_date = result.get("publication_date")
+    if raw_date is not None:
+        result["publication_date_raw"] = raw_date
+        result["publication_date"] = parse_publication_date(raw_date)
 
     return result
 

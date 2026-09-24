@@ -117,6 +117,17 @@ def main() -> int:
         f"({len(records) - len(unique_ids)} duplicate)"
     )
 
+    bad_dates = sorted(
+        {r["publication_date_raw"] for r in records
+         if r.get("publication_date_raw") and not r.get("publication_date")}
+    )
+    if bad_dates:
+        print(
+            f"warning: {len(bad_dates)} publication date format(s) could not be parsed "
+            f"(raw text kept, date left empty): {bad_dates[:5]}",
+            file=sys.stderr,
+        )
+
     failed = False
 
     if args.db in ("mongo", "both"):

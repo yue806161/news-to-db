@@ -11,6 +11,7 @@ COLUMNS = [
     "publication_title",
     "title",
     "publication_date",
+    "publication_date_raw",
     "section",
     "url",
     "abstract",
@@ -58,7 +59,8 @@ class SQLiteNewsDB:
     @staticmethod
     def _row_for(record: dict) -> tuple:
         url = record.get("document_url") or record.get("docview_url")
-        values = {**record, "url": url}
+        pub_date = record.get("publication_date")
+        values = {**record, "url": url, "publication_date": pub_date.isoformat() if pub_date else None}
         return tuple(values.get(col) for col in COLUMNS)
 
     def upsert_records(self, records: list[dict]) -> int:

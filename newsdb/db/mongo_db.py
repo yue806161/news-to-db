@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import datetime, time, timezone
 
 from pymongo import MongoClient, UpdateOne
 from pymongo.errors import PyMongoError
@@ -12,6 +12,7 @@ FIELDS = [
     "publication_title",
     "title",
     "publication_date",
+    "publication_date_raw",
     "section",
     "url",
     "abstract",
@@ -48,7 +49,7 @@ class MongoNewsDB:
 
     def upsert_records(self, records: list[dict], collection: str) -> int:
         """Insert or update records in `collection`, keyed by proquest_id."""
-        now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        now = datetime.now(timezone.utc).replace(microsecond=0)
         operations = []
         for record in records:
             proquest_id = record.get("proquest_id")
@@ -56,6 +57,10 @@ class MongoNewsDB:
                 continue
             doc = {field: record.get(field) for field in FIELDS}
             doc["url"] = record.get("document_url") or record.get("docview_url")
+            pub_date = record.get("publication_date")
+            doc["publication_date"] = (
+                datetime.combine(pub_date, time.min, tzinfo=timezone.utc) if pub_date else None
+            )
             # created_at is set only when the document is first inserted.
             operations.append(
                 UpdateOne(
