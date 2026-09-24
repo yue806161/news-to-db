@@ -56,7 +56,6 @@ class MongoNewsDB:
                 continue
             doc = {field: record.get(field) for field in FIELDS}
             doc["url"] = record.get("document_url") or record.get("docview_url")
-            doc["proquest_id"] = proquest_id
             # created_at is set only when the document is first inserted.
             operations.append(
                 UpdateOne(

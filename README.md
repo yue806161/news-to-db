@@ -93,7 +93,7 @@ MongoDB 115_Text_Project.FinancialTimes: wrote 76 records (collection now has 76
 
 ## 資料庫欄位
 
-SQLite 的 `news` 表(MongoDB 文件欄位相同):
+SQLite 的 `news` 表。MongoDB 文件的欄位相同,只是沒有 `proquest_id` 欄位,ProQuest 文件識別碼存在 `_id`:
 
 | 欄位 | 來源(txt 內的欄位) |
 |---|---|
