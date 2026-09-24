@@ -1,6 +1,6 @@
 # news-to-db
 
-把 ProQuest 匯出的報紙 `.txt`(Financial Times、Wall Street Journal)拆成欄位,寫入 SQLite,也可選擇同時寫入 MongoDB。
+把 ProQuest 匯出的報紙 `.txt`(Financial Times、Wall Street Journal)拆成欄位,寫入資料庫。可用 `--db` 選擇 MongoDB(預設)、SQLite 或兩者都寫。
 
 ## 環境安裝
 
@@ -41,7 +41,8 @@ python main.py [路徑 ...] [選項]
 | 多個資料夾 | `python main.py Data/FT Data/WSJ` |
 | 單一檔案 | `python main.py "Data/FT/ProQuestDocuments-1996-05-31-第一頁.txt"` |
 | 只跑某一年 | `python main.py "Data/FT/ProQuestDocuments-1996-*.txt" "Data/WSJ/ProQuestDocuments-1996-*.txt"` |
-| 同時寫入 MongoDB | `python main.py Data/FT Data/WSJ --with-mongo` |
+| 寫入 SQLite(預設是 MongoDB) | `python main.py Data/FT --db sqlite` |
+| 同時寫入 MongoDB 和 SQLite | `python main.py Data/FT Data/WSJ --db both` |
 
 注意:
 - 萬用字元(`*`、`?`、`[`)要用**引號**包住,由程式自己展開。PowerShell / cmd 不會替程式展開,Linux 的 shell 則會提前展開並可能造成錯誤。
@@ -52,9 +53,11 @@ python main.py [路徑 ...] [選項]
 
 | 選項 | 說明 | 預設 |
 |---|---|---|
-| `--sqlite-path` | 輸出的 SQLite 檔案路徑 | `Data/sqlite/news.db` |
-| `--with-mongo` | 同時 upsert 到 MongoDB | 關閉 |
-| `--mongo-uri` | MongoDB 連線字串 | `$MONGODB_URI`,否則 `mongodb://localhost:27017` |
+| `--db` | 目標資料庫:`mongo`、`sqlite`、`both` | `mongo` |
+| `--sqlite-path` | 輸出的 SQLite 檔案路徑(`--db` 含 sqlite 時使用) | `Data/sqlite/news.db` |
+| `--mongo-uri` | MongoDB 連線字串(`--db` 含 mongo 時使用) | `$MONGODB_URI`,否則 `mongodb://localhost:27017` |
+
+預設會寫 MongoDB,所以執行前 MongoDB 要先啟動。連不上時會印 `MongoDB: could not reach ...`、不寫入任何資料並以代碼 1 結束;`--db both` 時 Mongo 失敗不影響 SQLite 寫入。MongoDB 的資料庫名稱為 `news_to_db`,collection 為 `news`。
 
 ### 執行輸出範例
 
@@ -63,21 +66,21 @@ Found 2 .txt file(s)
   Data/FT/a.txt: 74 records
   Data/FT/b.txt: 2 records
 Parsed 76 records total, 74 unique by proquest_id (2 duplicate)
-SQLite: upserted 76 records into Data/sqlite/news.db (table now has 74 rows)
+MongoDB: wrote 74 records (collection now has 74 documents)
 ```
 
 可以用「Found N .txt file(s)」與每個檔案的筆數確認有沒有漏檔。
 
 ## 去重與重複執行
 
-- 以 `ProQuest 文件識別碼`(`proquest_id`)當唯一鍵,用 upsert 寫入。
+- 以 `ProQuest 文件識別碼`(`proquest_id`)當唯一鍵,用 upsert 寫入(MongoDB 的 `_id` 也是它)。
 - 同一篇文章出現在多個檔案(例如匯出日期區間重疊),或整批重跑,都會合併成一筆,不會重複。
 - 重跑時內容欄位會被新資料覆蓋;`created_at` 保持第一次寫入的時間。
 - 單一檔案解析失敗只會印警告並跳過,不影響其他檔案。
 
 ## 資料庫欄位
 
-SQLite 的 `news` 表(MongoDB 文件欄位相同,`_id` 也是 `proquest_id`):
+SQLite 的 `news` 表(MongoDB 文件欄位相同):
 
 | 欄位 | 來源(txt 內的欄位) |
 |---|---|
