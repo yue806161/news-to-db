@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import os
-
 from datetime import datetime, timezone
 
 from pymongo import MongoClient, UpdateOne
@@ -22,23 +21,23 @@ FIELDS = [
 
 
 class MongoNewsDB:
-    """Thin wrapper around a pymongo collection for news records.
+    """Thin wrapper around a pymongo database holding one collection per source.
 
     Connection string defaults to $MONGODB_URI, falling back to a local
     mongod instance. Records are upserted keyed by proquest_id (used as _id).
+    No indexes are created: _id is already unique, and the target
+    collections live on a shared server.
     """
 
     def __init__(
         self,
         uri: str | None = None,
-        db_name: str = "news_to_db",
-        collection_name: str = "news",
+        db_name: str = "115_Text_Project",
         server_selection_timeout_ms: int = 5000,
     ):
         self.uri = uri or os.environ.get("MONGODB_URI", "mongodb://localhost:27017")
         self.client = MongoClient(self.uri, serverSelectionTimeoutMS=server_selection_timeout_ms)
         self.db = self.client[db_name]
-        self.collection = self.db[collection_name]
 
     def ping(self) -> bool:
         try:
@@ -47,11 +46,8 @@ class MongoNewsDB:
         except PyMongoError:
             return False
 
-    def ensure_indexes(self) -> None:
-        self.collection.create_index("proquest_id", unique=True)
-
-    def upsert_records(self, records: list[dict]) -> int:
-        """Insert or update records keyed by proquest_id. Returns count written."""
+    def upsert_records(self, records: list[dict], collection: str) -> int:
+        """Insert or update records in `collection`, keyed by proquest_id."""
         now = datetime.now(timezone.utc).isoformat(timespec="seconds")
         operations = []
         for record in records:
@@ -71,11 +67,11 @@ class MongoNewsDB:
             )
         if not operations:
             return 0
-        result = self.collection.bulk_write(operations)
+        result = self.db[collection].bulk_write(operations)
         return result.upserted_count + result.modified_count
 
-    def count(self) -> int:
-        return self.collection.count_documents({})
+    def count(self, collection: str) -> int:
+        return self.db[collection].count_documents({})
 
     def close(self) -> None:
         self.client.close()

@@ -27,6 +27,17 @@ from newsdb.parser import parse_file
 
 DEFAULT_INPUTS = ["Data/FT", "Data/WSJ"]
 
+# Source folder name -> MongoDB collection. A file's source is the closest
+# parent folder of that name, e.g. Data/FT/1996/x.txt -> FinancialTimes.
+SOURCE_COLLECTIONS = {"FT": "FinancialTimes", "WSJ": "WSJ"}
+
+
+def source_collection(path: Path) -> str | None:
+    for part in reversed(path.parts):
+        if part.upper() in SOURCE_COLLECTIONS:
+            return SOURCE_COLLECTIONS[part.upper()]
+    return None
+
 
 def collect_txt_files(inputs: list[str]) -> list[Path]:
     """Resolve each input (file or directory) to a sorted list of .txt files."""
@@ -71,6 +82,9 @@ def main() -> int:
     parser.add_argument(
         "--mongo-uri", default=None, help="MongoDB URI (defaults to $MONGODB_URI or localhost)"
     )
+    parser.add_argument(
+        "--mongo-db", default="115_Text_Project", help="MongoDB database (default: 115_Text_Project)"
+    )
     args = parser.parse_args()
 
     txt_files = collect_txt_files(args.inputs)
@@ -80,6 +94,8 @@ def main() -> int:
     print(f"Found {len(txt_files)} .txt file(s)")
 
     records: list[dict] = []
+    by_collection: dict[str, list[dict]] = {}
+    unknown_source: list[Path] = []
     for path in txt_files:
         try:
             file_records = parse_file(path)
@@ -88,6 +104,11 @@ def main() -> int:
             continue
         print(f"  {path}: {len(file_records)} records")
         records.extend(file_records)
+        collection = source_collection(path)
+        if collection:
+            by_collection.setdefault(collection, []).extend(file_records)
+        else:
+            unknown_source.append(path)
 
     unique_ids = {r["proquest_id"] for r in records if r.get("proquest_id")}
     print(
@@ -101,15 +122,25 @@ def main() -> int:
     if args.db in ("mongo", "both"):
         from newsdb.db.mongo_db import MongoNewsDB
 
-        with MongoNewsDB(uri=args.mongo_uri) as mdb:
+        with MongoNewsDB(uri=args.mongo_uri, db_name=args.mongo_db) as mdb:
             if not mdb.ping():
                 print(f"MongoDB: could not reach {mdb.uri}, nothing written", file=sys.stderr)
                 failed = True
             else:
-                mdb.ensure_indexes()
-                written = mdb.upsert_records(records)
-                total = mdb.count()
-                print(f"MongoDB: wrote {written} records (collection now has {total} documents)")
+                for collection, coll_records in sorted(by_collection.items()):
+                    written = mdb.upsert_records(coll_records, collection)
+                    total = mdb.count(collection)
+                    print(
+                        f"MongoDB {args.mongo_db}.{collection}: wrote {written} records "
+                        f"(collection now has {total} documents)"
+                    )
+                for path in unknown_source:
+                    print(
+                        f"warning: {path} is not under a FT or WSJ folder, "
+                        "not written to MongoDB",
+                        file=sys.stderr,
+                    )
+                    failed = True
 
     if args.db in ("sqlite", "both"):
         with SQLiteNewsDB(args.sqlite_path) as db:
