@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import os
 
-from pymongo import MongoClient, ReplaceOne
+from datetime import datetime, timezone
+
+from pymongo import MongoClient, UpdateOne
 from pymongo.errors import PyMongoError
 
 # Content fields stored per document, mirroring newsdb.db.sqlite_db.COLUMNS.
@@ -11,6 +13,7 @@ FIELDS = [
     "publication_title",
     "title",
     "publication_date",
+    "section",
     "url",
     "abstract",
     "full_text",
@@ -49,6 +52,7 @@ class MongoNewsDB:
 
     def upsert_records(self, records: list[dict]) -> int:
         """Insert or update records keyed by proquest_id. Returns count written."""
+        now = datetime.now(timezone.utc).isoformat(timespec="seconds")
         operations = []
         for record in records:
             proquest_id = record.get("proquest_id")
@@ -56,8 +60,15 @@ class MongoNewsDB:
                 continue
             doc = {field: record.get(field) for field in FIELDS}
             doc["url"] = record.get("document_url") or record.get("docview_url")
-            doc["_id"] = proquest_id
-            operations.append(ReplaceOne({"_id": proquest_id}, doc, upsert=True))
+            doc["proquest_id"] = proquest_id
+            # created_at is set only when the document is first inserted.
+            operations.append(
+                UpdateOne(
+                    {"_id": proquest_id},
+                    {"$set": doc, "$setOnInsert": {"created_at": now}},
+                    upsert=True,
+                )
+            )
         if not operations:
             return 0
         result = self.collection.bulk_write(operations)
