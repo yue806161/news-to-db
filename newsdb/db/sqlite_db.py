@@ -40,7 +40,7 @@ ON CONFLICT(proquest_id) DO UPDATE SET
 class SQLiteNewsDB:
     """Thin wrapper around a sqlite3 connection for the `news` table."""
 
-    def __init__(self, path: str | Path = "data/sqlite/news.db"):
+    def __init__(self, path: str | Path = "Data/sqlite/news.db"):
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.conn = sqlite3.connect(self.path)

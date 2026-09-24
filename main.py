@@ -8,11 +8,11 @@ ProQuest document id (proquest_id), so re-running on overlapping files
 de-duplicates automatically.
 
 Usage:
-    python main.py                          # scans data/FT and data/WSJ
-    python main.py data/FT data/WSJ
-    python main.py "data/FT/ProQuestDocuments-1996-*.txt"   # one year
-    python main.py data/FT/ProQuestDocuments-1996-05-31-第一頁.txt
-    python main.py data/FT data/WSJ --with-mongo
+    python main.py                          # scans Data/FT and Data/WSJ
+    python main.py Data/FT Data/WSJ
+    python main.py "Data/FT/ProQuestDocuments-1996-*.txt"   # one year
+    python main.py Data/FT/ProQuestDocuments-1996-05-31-第一頁.txt
+    python main.py Data/FT Data/WSJ --with-mongo
 """
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ from pathlib import Path
 from newsdb.db.sqlite_db import SQLiteNewsDB
 from newsdb.parser import parse_file
 
-DEFAULT_INPUTS = ["data/FT", "data/WSJ"]
+DEFAULT_INPUTS = ["Data/FT", "Data/WSJ"]
 
 
 def collect_txt_files(inputs: list[str]) -> list[Path]:
@@ -59,7 +59,7 @@ def main() -> int:
         help=f"ProQuest export .txt file(s) or directories (default: {DEFAULT_INPUTS})",
     )
     parser.add_argument(
-        "--sqlite-path", default="data/sqlite/news.db", help="Output SQLite database path"
+        "--sqlite-path", default="Data/sqlite/news.db", help="Output SQLite database path"
     )
     parser.add_argument(
         "--with-mongo", action="store_true", help="Also upsert records into MongoDB"
