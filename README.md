@@ -56,8 +56,21 @@ python main.py [路徑 ...] [選項]
 | `--db` | 目標資料庫:`mongo`、`sqlite`、`both` | `mongo` |
 | `--sqlite-path` | 輸出的 SQLite 檔案路徑(`--db` 含 sqlite 時使用) | `Data/sqlite/news.db` |
 | `--mongo-uri` | MongoDB 連線字串(`--db` 含 mongo 時使用) | `$MONGODB_URI`,否則 `mongodb://localhost:27017` |
+| `--mongo-db` | MongoDB 資料庫名稱 | `115_Text_Project` |
 
-預設會寫 MongoDB,所以執行前 MongoDB 要先啟動。連不上時會印 `MongoDB: could not reach ...`、不寫入任何資料並以代碼 1 結束;`--db both` 時 Mongo 失敗不影響 SQLite 寫入。MongoDB 的資料庫名稱為 `news_to_db`,collection 為 `news`。
+預設會寫 MongoDB,所以執行前 MongoDB 要先啟動。連不上時會印 `MongoDB: could not reach ...`、不寫入任何資料並以代碼 1 結束;`--db both` 時 Mongo 失敗不影響 SQLite 寫入。
+
+### MongoDB 的 collection 對應
+
+依檔案所在的來源資料夾決定寫入哪個 collection(資料庫預設為 `115_Text_Project`):
+
+| 資料夾 | collection |
+|---|---|
+| `Data/FT/...`(含子資料夾) | `FinancialTimes` |
+| `Data/WSJ/...`(含子資料夾) | `WSJ` |
+
+- 判斷方式是檔案路徑中最靠近檔案的名為 `FT` 或 `WSJ` 的資料夾。不在這兩個資料夾底下的 txt 不會寫入 MongoDB,會印警告並以代碼 1 結束(SQLite 不受影響)。
+- 程式不會建立或修改索引,只用 `proquest_id` 當 `_id` 做 upsert。這兩個 collection 若已有舊資料,請先確認 `_id` 的格式(`db.FinancialTimes.findOne()`),否則同一篇文章可能會以不同 `_id` 重複出現。
 
 ### 執行輸出範例
 
@@ -66,7 +79,7 @@ Found 2 .txt file(s)
   Data/FT/a.txt: 74 records
   Data/FT/b.txt: 2 records
 Parsed 76 records total, 74 unique by proquest_id (2 duplicate)
-MongoDB: wrote 74 records (collection now has 74 documents)
+MongoDB 115_Text_Project.FinancialTimes: wrote 76 records (collection now has 76 documents)
 ```
 
 可以用「Found N .txt file(s)」與每個檔案的筆數確認有沒有漏檔。
