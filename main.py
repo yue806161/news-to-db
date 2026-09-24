@@ -1,5 +1,5 @@
-"""Parse ProQuest news export .txt files and load them into SQLite (and
-optionally MongoDB).
+"""Parse ProQuest news export .txt files and load them into MongoDB and/or
+SQLite (default: MongoDB).
 
 Each input may be a single .txt file or a directory, in which case every
 *.txt file under it is parsed. Records are upserted keyed by their
@@ -12,7 +12,8 @@ Usage:
     python main.py Data/FT Data/WSJ
     python main.py "Data/FT/ProQuestDocuments-1996-*.txt"   # one year
     python main.py Data/FT/ProQuestDocuments-1996-05-31-第一頁.txt
-    python main.py Data/FT Data/WSJ --with-mongo
+    python main.py Data/FT --db sqlite      # SQLite instead of MongoDB
+    python main.py Data/FT --db both        # write to both
 """
 from __future__ import annotations
 
@@ -59,10 +60,13 @@ def main() -> int:
         help=f"ProQuest export .txt file(s) or directories (default: {DEFAULT_INPUTS})",
     )
     parser.add_argument(
-        "--sqlite-path", default="Data/sqlite/news.db", help="Output SQLite database path"
+        "--db",
+        choices=["mongo", "sqlite", "both"],
+        default="mongo",
+        help="Target database (default: mongo)",
     )
     parser.add_argument(
-        "--with-mongo", action="store_true", help="Also upsert records into MongoDB"
+        "--sqlite-path", default="Data/sqlite/news.db", help="Output SQLite database path"
     )
     parser.add_argument(
         "--mongo-uri", default=None, help="MongoDB URI (defaults to $MONGODB_URI or localhost)"
@@ -92,24 +96,28 @@ def main() -> int:
         f"({len(records) - len(unique_ids)} duplicate)"
     )
 
-    with SQLiteNewsDB(args.sqlite_path) as db:
-        written = db.upsert_records(records)
-        total = db.count()
-    print(f"SQLite: upserted {written} records into {args.sqlite_path} (table now has {total} rows)")
+    failed = False
 
-    if args.with_mongo:
+    if args.db in ("mongo", "both"):
         from newsdb.db.mongo_db import MongoNewsDB
 
         with MongoNewsDB(uri=args.mongo_uri) as mdb:
             if not mdb.ping():
-                print(f"MongoDB: could not reach {mdb.uri}, skipping Mongo write", file=sys.stderr)
-                return 1
-            mdb.ensure_indexes()
-            written = mdb.upsert_records(records)
-            total = mdb.count()
-        print(f"MongoDB: upserted {written} records (collection now has {total} documents)")
+                print(f"MongoDB: could not reach {mdb.uri}, nothing written", file=sys.stderr)
+                failed = True
+            else:
+                mdb.ensure_indexes()
+                written = mdb.upsert_records(records)
+                total = mdb.count()
+                print(f"MongoDB: wrote {written} records (collection now has {total} documents)")
 
-    return 0
+    if args.db in ("sqlite", "both"):
+        with SQLiteNewsDB(args.sqlite_path) as db:
+            written = db.upsert_records(records)
+            total = db.count()
+        print(f"SQLite: upserted {written} records into {args.sqlite_path} (table now has {total} rows)")
+
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":
